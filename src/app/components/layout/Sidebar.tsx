@@ -58,7 +58,7 @@ const menuItems = [
   },
   {
     id: "staff",
-    label: "Staff",
+    label: "Doctors & Staff",
     icon: UserCog,
   },
   {

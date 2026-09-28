@@ -96,6 +96,9 @@ export interface PatientPayload {
   bloodType?: BloodType;
 
   allergies?: string;
+
+  hospitalId: string;
+  isPrimary?: boolean;
 }
 
 /**
@@ -103,6 +106,7 @@ export interface PatientPayload {
  */
 export async function getPatients(
   search = "",
+  hospitalId?: string,
 ): Promise<Patient[]> {
   const params = new URLSearchParams({
     page: "1",
@@ -111,6 +115,10 @@ export async function getPatients(
 
   if (search.trim()) {
     params.set("search", search.trim());
+  }
+
+  if (hospitalId) {
+    params.set("hospitalId", hospitalId);
   }
 
   return apiRequest<Patient[]>(
@@ -132,10 +140,7 @@ export async function getPatient(
 /**
  * Create patient
  *
- * IMPORTANT:
- * Hospital ID is NOT sent here.
- *
- * The patient endpoint receives only patient information.
+ * The active hospital UUID creates the patient's hospital registration.
  * Address is created separately after the patient is created.
  */
 export async function createPatient(

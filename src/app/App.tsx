@@ -14,7 +14,8 @@ import { Reports } from "./components/sections/Reports";
 import { SettingsSection } from "./components/sections/Settings";import { Triage } from "./components/sections/Triage";
 import { Consultation } from "./components/sections/Consultation";
 import { Documents } from "./components/sections/Documents";
-import { Staff } from "./components/sections/Staff";
+import { Encounter } from "./components/sections/Encounter";
+import { WorkflowConfiguration } from "./components/sections/WorkflowConfiguration";
 
 export default function App() {
   const [activeSection, setActiveSection] = useState("dashboard");
@@ -30,7 +31,7 @@ export default function App() {
       case "ipd":
         return <IPDManagement />;
       case "staff":
-        return <Staff />;
+        return <DoctorsStaff />;
       case "doctors":
         return <DoctorsStaff />;
       case "billing":
@@ -43,6 +44,8 @@ export default function App() {
         return <Inventory />;
       case "triage":
         return <Triage />;
+      case "encounter":
+        return <Encounter />;
       case "consultation":
         return <Consultation />;
       case "documents":
@@ -50,7 +53,10 @@ export default function App() {
       case "reports":
         return <Reports />;
       case "settings":
-  return <SettingsSection />;      default:
+        return <SettingsSection />;
+      case "workflow-configuration":
+        return <WorkflowConfiguration />;
+      default:
         return <Dashboard />;
     }
   };

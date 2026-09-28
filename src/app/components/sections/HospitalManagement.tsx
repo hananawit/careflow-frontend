@@ -30,6 +30,7 @@ import {
   type Department,
   type DepartmentStatus,
 } from "../../../services/department.service";
+import { useHospitalContext } from "../../context/HospitalContext";
 
 interface HospitalManagementProps {
   onBack: () => void;
@@ -64,9 +65,11 @@ const emptyDepartmentForm: CreateDepartmentPayload = {
 export function HospitalManagement({
   onBack,
 }: HospitalManagementProps) {
+  const { refreshHospitals } = useHospitalContext();
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
 
@@ -93,10 +96,12 @@ export function HospitalManagement({
   const loadHospitals = async () => {
     try {
       setLoading(true);
+      setError("");
       const response = await getHospitals(1, 100);
       setHospitals(response.data);
     } catch (error) {
       console.error("Failed to load hospitals:", error);
+      setError(getErrorMessage(error, "Unable to load hospitals."));
     } finally {
       setLoading(false);
     }
@@ -105,6 +110,7 @@ export function HospitalManagement({
   const loadDepartments = async (hospitalId: string) => {
     try {
       setDepartmentsLoading(true);
+      setError("");
 
       const response = await getDepartments(
         hospitalId,
@@ -116,6 +122,7 @@ export function HospitalManagement({
     } catch (error) {
       console.error("Failed to load departments:", error);
       setDepartments([]);
+      setError(getErrorMessage(error, "Unable to load departments."));
     } finally {
       setDepartmentsLoading(false);
     }
@@ -136,12 +143,14 @@ export function HospitalManagement({
   });
 
   const openCreateHospital = () => {
+    setError("");
     setEditingHospital(null);
     setHospitalForm(emptyHospitalForm);
     setShowHospitalForm(true);
   };
 
   const openEditHospital = (hospital: Hospital) => {
+    setError("");
     setEditingHospital(hospital);
 
     setHospitalForm({
@@ -159,6 +168,11 @@ export function HospitalManagement({
   };
 
   const handleHospitalSubmit = async () => {
+    if (!hospitalForm.name.trim() || !hospitalForm.code.trim()) {
+      setError("Hospital name and code are required.");
+      return;
+    }
+
     const payload: CreateHospitalPayload = {
       name: hospitalForm.name.trim(),
       code: hospitalForm.code.trim(),
@@ -182,6 +196,7 @@ export function HospitalManagement({
 
     try {
       setSaving(true);
+      setError("");
 
       if (editingHospital) {
         await updateHospital(editingHospital.id, payload);
@@ -194,8 +209,10 @@ export function HospitalManagement({
       setHospitalForm(emptyHospitalForm);
 
       await loadHospitals();
+      await refreshHospitals();
     } catch (error) {
       console.error("Failed to save hospital:", error);
+      setError(getErrorMessage(error, "Unable to save hospital."));
     } finally {
       setSaving(false);
     }
@@ -205,6 +222,7 @@ export function HospitalManagement({
     hospital: Hospital,
   ) => {
     try {
+      setError("");
       await updateHospital(hospital.id, {
         status:
           hospital.status === "ACTIVE"
@@ -213,6 +231,7 @@ export function HospitalManagement({
       });
 
       await loadHospitals();
+      await refreshHospitals();
 
       if (selectedHospital?.id === hospital.id) {
         setSelectedHospital({
@@ -228,6 +247,7 @@ export function HospitalManagement({
         "Failed to update hospital status:",
         error,
       );
+      setError(getErrorMessage(error, "Unable to update hospital status."));
     }
   };
 
@@ -241,6 +261,7 @@ export function HospitalManagement({
     }
 
     try {
+      setError("");
       await deleteHospital(hospital.id);
 
       if (selectedHospital?.id === hospital.id) {
@@ -249,8 +270,10 @@ export function HospitalManagement({
       }
 
       await loadHospitals();
+      await refreshHospitals();
     } catch (error) {
       console.error("Failed to delete hospital:", error);
+      setError(getErrorMessage(error, "Unable to delete hospital."));
     }
   };
 
@@ -262,6 +285,7 @@ export function HospitalManagement({
   const openCreateDepartment = () => {
     if (!selectedHospital) return;
 
+    setError("");
     setEditingDepartment(null);
 
     setDepartmentForm({
@@ -275,6 +299,7 @@ export function HospitalManagement({
   const openEditDepartment = (
     department: Department,
   ) => {
+    setError("");
     setEditingDepartment(department);
 
     setDepartmentForm({
@@ -290,6 +315,11 @@ export function HospitalManagement({
 
   const handleDepartmentSubmit = async () => {
     if (!selectedHospital) return;
+
+    if (!departmentForm.name.trim() || !departmentForm.code.trim()) {
+      setError("Department name and code are required.");
+      return;
+    }
 
     const payload: CreateDepartmentPayload = {
       hospitalId: selectedHospital.id,
@@ -308,6 +338,7 @@ export function HospitalManagement({
 
     try {
       setSaving(true);
+      setError("");
 
       if (editingDepartment) {
         await updateDepartment(
@@ -328,6 +359,7 @@ export function HospitalManagement({
         "Failed to save department:",
         error,
       );
+      setError(getErrorMessage(error, "Unable to save department."));
     } finally {
       setSaving(false);
     }
@@ -339,6 +371,7 @@ export function HospitalManagement({
     if (!selectedHospital) return;
 
     try {
+      setError("");
       await updateDepartment(department.id, {
         status:
           department.status === "ACTIVE"
@@ -352,6 +385,7 @@ export function HospitalManagement({
         "Failed to update department status:",
         error,
       );
+      setError(getErrorMessage(error, "Unable to update department status."));
     }
   };
 
@@ -369,6 +403,7 @@ export function HospitalManagement({
     if (!selectedHospital) return;
 
     try {
+      setError("");
       await deleteDepartment(department.id);
       await loadDepartments(selectedHospital.id);
     } catch (error) {
@@ -376,6 +411,7 @@ export function HospitalManagement({
         "Failed to delete department:",
         error,
       );
+      setError(getErrorMessage(error, "Unable to delete department."));
     }
   };
 
@@ -408,12 +444,19 @@ export function HospitalManagement({
 
           <button
             onClick={openCreateDepartment}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90"
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Plus size={18} />
             Add Department
           </button>
         </div>
+
+        {error && (
+          <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
 
         <div className="bg-card rounded-2xl border border-border overflow-hidden">
           {departmentsLoading ? (
@@ -557,6 +600,7 @@ export function HospitalManagement({
                   onClick={() =>
                     setShowDepartmentForm(false)
                   }
+                  disabled={saving}
                   className="p-2 rounded-lg hover:bg-muted"
                 >
                   <X size={20} />
@@ -687,12 +731,19 @@ export function HospitalManagement({
 
         <button
           onClick={openCreateHospital}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90"
+          disabled={saving}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Plus size={18} />
           Add Hospital
         </button>
       </div>
+
+      {error && (
+        <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
       <div className="bg-card rounded-2xl border border-border p-4">
         <div className="relative max-w-md">
@@ -1041,4 +1092,13 @@ function FormField({
       />
     </div>
   );
+}
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string,
+) {
+  return error instanceof Error && error.message
+    ? error.message
+    : fallback;
 }

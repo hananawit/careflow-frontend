@@ -41,7 +41,7 @@ export async function createAddress(
   data: AddressPayload,
 ): Promise<Address> {
   return apiRequest<Address>(
-    "/addresses",
+    "/address",
     {
       method: "POST",
       body: JSON.stringify(data),
@@ -56,7 +56,7 @@ export async function getAddress(
   id: string,
 ): Promise<Address> {
   return apiRequest<Address>(
-    `/addresses/${id}`,
+    `/address/${id}`,
   );
 }
 
@@ -68,7 +68,7 @@ export async function getAddresses(
   limit = 100,
 ): Promise<Address[]> {
   return apiRequest<Address[]>(
-    `/addresses?page=${page}&limit=${limit}`,
+    `/address?page=${page}&limit=${limit}`,
   );
 }
 
@@ -80,7 +80,7 @@ export async function updateAddress(
   data: Partial<AddressPayload>,
 ): Promise<Address> {
   return apiRequest<Address>(
-    `/addresses/${id}`,
+    `/address/${id}`,
     {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -95,7 +95,7 @@ export async function deleteAddress(
   id: string,
 ): Promise<void> {
   await apiRequest(
-    `/addresses/${id}`,
+    `/address/${id}`,
     {
       method: "DELETE",
     },

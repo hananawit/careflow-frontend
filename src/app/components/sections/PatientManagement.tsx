@@ -4,6 +4,7 @@ import {
   getPatients,
   getPatient,
   createPatient,
+  updatePatient,
   type Patient,
   type PatientPayload,
   type Gender,
@@ -13,6 +14,7 @@ import {
 import {
   createAddress,
 } from "../../../services/address.service";
+import { useHospitalContext } from "../../context/HospitalContext";
 
 import {
   Search,
@@ -26,6 +28,18 @@ import {
   Upload,
   X,
 } from "lucide-react";
+
+type PatientForm = Omit<PatientPayload, "hospitalId" | "isPrimary"> & {
+  age?: number;
+  address: {
+    country: string;
+    region: string;
+    city: string;
+    subCity: string;
+    woreda: string;
+    houseNumber: string;
+  };
+};
 
 /* =========================================================
    AGE CALCULATION
@@ -72,6 +86,7 @@ function calculateAge(
 ========================================================= */
 
 export function PatientManagement() {
+  const { currentHospital, isLoading: hospitalsLoading } = useHospitalContext();
   /* =======================================================
      PATIENT LIST
   ======================================================= */
@@ -108,23 +123,15 @@ export function PatientManagement() {
   const [selectedPatient, setSelectedPatient] =
     useState<string | null>(null);
 
+  const [editingPatient, setEditingPatient] =
+    useState<Patient | null>(null);
+
   /* =======================================================
      FORM
   ======================================================= */
 
   const [patientForm, setPatientForm] =
-    useState<PatientPayload & {
-      age?: number;
-
-      address: {
-        country: string;
-        region: string;
-        city: string;
-        subCity: string;
-        woreda: string;
-        houseNumber: string;
-      };
-    }>({
+    useState<PatientForm>({
       firstName: "",
 
       middleName: "",
@@ -166,16 +173,25 @@ export function PatientManagement() {
 
   useEffect(() => {
     loadPatients();
-  }, [search]);
+  }, [search, currentHospital?.id, hospitalsLoading]);
 
   async function loadPatients() {
+    if (hospitalsLoading) return;
+
+    if (!currentHospital) {
+      setPatients([]);
+      setError("Select an active hospital before viewing patient records.");
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
 
       setError("");
 
       const data =
-        await getPatients(search);
+        await getPatients(search, currentHospital.id);
 
       setPatients(data);
     } catch (err) {
@@ -253,6 +269,11 @@ export function PatientManagement() {
 
   async function handleSavePatient() {
     setSaveError("");
+
+    if (!currentHospital) {
+      setSaveError("Select an active hospital before registering a patient.");
+      return;
+    }
 
     /* -------------------------------------------------------
        VALIDATION
@@ -410,6 +431,9 @@ export function PatientManagement() {
         allergies:
           patientForm.allergies?.trim() ||
           undefined,
+
+        hospitalId: currentHospital.id,
+        isPrimary: true,
       };
 
       const createdPatient =
@@ -499,18 +523,26 @@ export function PatientManagement() {
           </h1>
 
           <p className="text-muted-foreground">
-            Manage patient records and medical history
+            {currentHospital
+              ? `Patient records for ${currentHospital.name}`
+              : "Select an active hospital to manage patient records"}
           </p>
         </div>
 
         <button
           type="button"
           onClick={() => {
+            if (!currentHospital) {
+              setError("Select an active hospital before registering a patient.");
+              return;
+            }
+
             resetPatientForm();
 
             setShowAddPatient(true);
           }}
-          className="flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-all shadow-md hover:shadow-lg"
+          disabled={hospitalsLoading}
+          className="flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-all shadow-md hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Plus className="w-5 h-5" />
 
@@ -823,6 +855,9 @@ export function PatientManagement() {
 
                           <button
                             type="button"
+                            onClick={() =>
+                              setEditingPatient(patient)
+                            }
                             className="p-2 hover:bg-muted rounded-lg text-foreground transition-colors"
                             title="Edit"
                           >
@@ -1504,8 +1539,122 @@ export function PatientManagement() {
 
       )}
 
+      {editingPatient && (
+        <EditPatientModal
+          patient={editingPatient}
+          onClose={() => setEditingPatient(null)}
+          onSaved={() => {
+            setEditingPatient(null);
+            void loadPatients();
+          }}
+        />
+      )}
+
     </div>
   );
+}
+
+function EditPatientModal({
+  patient,
+  onClose,
+  onSaved,
+}: {
+  patient: Patient;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState({
+    firstName: patient.personProfile.firstName,
+    middleName: patient.personProfile.middleName ?? "",
+    lastName: patient.personProfile.lastName,
+    dateOfBirth: patient.personProfile.dateOfBirth?.slice(0, 10) ?? "",
+    gender: patient.personProfile.gender,
+    phoneNumber: patient.personProfile.phoneNumber ?? "",
+    nationalId: patient.personProfile.nationalId ?? "",
+    bloodType: patient.bloodType ?? "UNKNOWN",
+    allergies: patient.allergies ?? "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      setError("First name and last name are required.");
+      return;
+    }
+
+    if (!form.phoneNumber.trim()) {
+      setError("Phone number is required.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError("");
+
+      await updatePatient(patient.id, {
+        firstName: form.firstName.trim(),
+        middleName: form.middleName.trim() || undefined,
+        lastName: form.lastName.trim(),
+        dateOfBirth: form.dateOfBirth || undefined,
+        gender: form.gender,
+        phoneNumber: form.phoneNumber.trim(),
+        nationalId: form.nationalId.trim() || undefined,
+        bloodType: form.bloodType,
+        allergies: form.allergies.trim() || undefined,
+      });
+
+      onSaved();
+    } catch (saveError) {
+      console.error(saveError);
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Failed to update patient.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="edit-patient-title">
+      <form onSubmit={handleSubmit} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-border bg-card shadow-xl">
+        <div className="sticky top-0 flex items-center justify-between border-b border-border bg-card px-6 py-4">
+          <div>
+            <h2 id="edit-patient-title" className="text-xl font-semibold text-foreground">Edit Patient</h2>
+            <p className="text-sm text-muted-foreground">{patient.personProfile.firstName} {patient.personProfile.lastName}</p>
+          </div>
+          <button type="button" onClick={onClose} disabled={saving} className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50" aria-label="Close edit patient dialog">
+            <X className="size-5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
+          <PatientEditField label="First Name" value={form.firstName} onChange={(value) => setForm((current) => ({ ...current, firstName: value }))} required />
+          <PatientEditField label="Middle Name" value={form.middleName} onChange={(value) => setForm((current) => ({ ...current, middleName: value }))} />
+          <PatientEditField label="Last Name" value={form.lastName} onChange={(value) => setForm((current) => ({ ...current, lastName: value }))} required />
+          <label className="block text-sm font-medium text-foreground">Date of Birth<input type="date" value={form.dateOfBirth} onChange={(event) => setForm((current) => ({ ...current, dateOfBirth: event.target.value }))} className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring" /></label>
+          <label className="block text-sm font-medium text-foreground">Gender<select value={form.gender} onChange={(event) => setForm((current) => ({ ...current, gender: event.target.value as Gender }))} className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="MALE">Male</option><option value="FEMALE">Female</option></select></label>
+          <label className="block text-sm font-medium text-foreground">Blood Group<select value={form.bloodType} onChange={(event) => setForm((current) => ({ ...current, bloodType: event.target.value as BloodType }))} className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="UNKNOWN">Unknown</option><option value="A_POSITIVE">A+</option><option value="A_NEGATIVE">A-</option><option value="B_POSITIVE">B+</option><option value="B_NEGATIVE">B-</option><option value="AB_POSITIVE">AB+</option><option value="AB_NEGATIVE">AB-</option><option value="O_POSITIVE">O+</option><option value="O_NEGATIVE">O-</option></select></label>
+          <PatientEditField label="Phone Number" value={form.phoneNumber} onChange={(value) => setForm((current) => ({ ...current, phoneNumber: value }))} required />
+          <PatientEditField label="National ID" value={form.nationalId} onChange={(value) => setForm((current) => ({ ...current, nationalId: value }))} />
+          <label className="block text-sm font-medium text-foreground md:col-span-2">Allergies<textarea value={form.allergies} onChange={(event) => setForm((current) => ({ ...current, allergies: event.target.value }))} rows={3} className="mt-2 w-full rounded-md border border-input bg-background p-3 font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring" /></label>
+        </div>
+
+        <div className="border-t border-border px-6 py-4">
+          {error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}
+          <div className="flex justify-end gap-3"><button type="button" onClick={onClose} disabled={saving} className="rounded-md px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50">Cancel</button><button disabled={saving} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">{saving ? "Saving..." : "Save Changes"}</button></div>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function PatientEditField({ label, value, onChange, required = false }: { label: string; value: string; onChange: (value: string) => void; required?: boolean }) {
+  return <label className="block text-sm font-medium text-foreground">{label}{required ? " *" : ""}<input value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring" required={required} /></label>;
 }
 
 /* =========================================================
