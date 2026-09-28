@@ -1,36 +1,83 @@
-import { 
-  LayoutDashboard, 
-  Users, 
-  Calendar, 
-  Hospital, 
-  Stethoscope, 
-  CreditCard, 
-  Pill, 
-  FlaskConical, 
-  Package, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  Users,
+  Calendar,
+  Stethoscope,
+  FlaskConical,
+  BarChart3,
   Settings,
-  Sparkles 
+  Sparkles,
+  ClipboardList,
+  UserCog,
+  Workflow,
 } from "lucide-react";
-
 interface SidebarProps {
   activeSection: string;
   onSectionChange: (section: string) => void;
 }
-
 const menuItems = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "patients", label: "Patient Management", icon: Users },
-  { id: "appointments", label: "Appointments (OPD)", icon: Calendar },
-  { id: "ipd", label: "IPD Management", icon: Hospital },
-  { id: "doctors", label: "Doctors & Staff", icon: Stethoscope },
-  { id: "billing", label: "Billing & Finance", icon: CreditCard },
-  { id: "pharmacy", label: "Pharmacy", icon: Pill },
-  { id: "laboratory", label: "Laboratory", icon: FlaskConical },
-  { id: "inventory", label: "Inventory", icon: Package },
-  { id: "reports", label: "Reports", icon: BarChart3 },
-  { id: "settings", label: "Settings", icon: Settings },
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+  },
+  {
+    id: "work-queue",
+    label: "My Work Queue",
+    icon: ClipboardList,
+  },
+  {
+    id: "patients",
+    label: "Patients",
+    icon: Users,
+  },
+  {
+    id: "appointments",
+    label: "Appointments",
+    icon: Calendar,
+  },
+  {
+    id: "triage",
+    label: "Triage",
+    icon: Stethoscope,
+  },
+  {
+    id: "encounter",
+    label: "Encounter",
+    icon: UserCog,
+  },
+  {
+    id: "consultation",
+    label: "Consultation",
+    icon: Stethoscope,
+  },
+  {
+    id: "laboratory",
+    label: "Laboratory",
+    icon: FlaskConical,
+  },
+  {
+    id: "staff",
+    label: "Staff",
+    icon: UserCog,
+  },
+  {
+    id: "reports",
+    label: "Reports",
+    icon: BarChart3,
+  },
+  {
+    id: "settings",
+    label: "Settings",
+    icon: Settings,
+  },
+  {
+    id: "workflow-configuration",
+    label: "Workflow Configuration",
+    icon: Workflow,
+  }
 ];
+
 
 export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   return (

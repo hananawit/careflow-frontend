@@ -11,11 +11,11 @@ import { Pharmacy } from "./components/sections/Pharmacy";
 import { Laboratory } from "./components/sections/Laboratory";
 import { Inventory } from "./components/sections/Inventory";
 import { Reports } from "./components/sections/Reports";
-import { SettingsSection } from "./components/sections/Settings";
-import { Triage } from "./components/sections/Triage";
+import { SettingsSection } from "./components/sections/Settings";import { Triage } from "./components/sections/Triage";
 import { Consultation } from "./components/sections/Consultation";
 import { Documents } from "./components/sections/Documents";
 import { Staff } from "./components/sections/Staff";
+
 export default function App() {
   const [activeSection, setActiveSection] = useState("dashboard");
 
@@ -27,22 +27,30 @@ export default function App() {
         return <PatientManagement />;
       case "appointments":
         return <Appointments />;
-      case "triage":
-        return <Triage />;
-
-      case "consultation":
-        return <Consultation />;
-
-      case "documents":
-        return <Documents />;
-
+      case "ipd":
+        return <IPDManagement />;
       case "staff":
         return <Staff />;
+      case "doctors":
+        return <DoctorsStaff />;
+      case "billing":
+        return <Billing />;
+      case "pharmacy":
+        return <Pharmacy />;
+      case "laboratory":
+        return <Laboratory />;
+      case "inventory":
+        return <Inventory />;
+      case "triage":
+        return <Triage />;
+      case "consultation":
+        return <Consultation />;
+      case "documents":
+        return <Documents />;
       case "reports":
         return <Reports />;
       case "settings":
-        return <SettingsSection />;
-      default:
+  return <SettingsSection />;      default:
         return <Dashboard />;
     }
   };
