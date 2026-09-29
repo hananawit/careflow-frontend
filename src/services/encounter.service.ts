@@ -30,7 +30,7 @@ export interface CreateEncounterDto {
 export async function createEncounter(
   data: CreateEncounterDto,
 ): Promise<Encounter> {
-  return apiRequest<Encounter>("/encounters", {
+  return apiRequest<Encounter>("/encounter", {
     method: "POST",
     body: JSON.stringify(data),
   });

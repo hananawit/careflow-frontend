@@ -8,15 +8,24 @@ import {
   Palette,
 } from "lucide-react";
 import { HospitalManagement } from "./HospitalManagement";
+import { StaffManagement } from "./StaffManagement";
 
 export function SettingsSection() {
   const [activeSection, setActiveSection] = useState<
-    "main" | "hospitals"
+    "main" | "hospitals" | "staff"
   >("main");
 
   if (activeSection === "hospitals") {
     return (
       <HospitalManagement
+        onBack={() => setActiveSection("main")}
+      />
+    );
+  }
+
+  if (activeSection === "staff") {
+    return (
+      <StaffManagement
         onBack={() => setActiveSection("main")}
       />
     );
@@ -47,6 +56,7 @@ export function SettingsSection() {
           description="Manage user accounts and permissions"
           icon={User}
           color="success"
+          onClick={() => setActiveSection("staff")}
         />
 
         <SettingsCard

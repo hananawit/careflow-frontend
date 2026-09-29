@@ -11,12 +11,17 @@ import {
 
 import {
   getAppointments,
+  createAppointment,
   type Appointment,
   type AppointmentWorkflowAction,
+  type CreateAppointmentPayload,
   executeAppointmentWorkflowTransition,
 } from "../../../services/appointment.service";
 
 import { createEncounter } from "../../../services/encounter.service";
+import { getPatients, type Patient } from "../../../services/patient.service";
+import { getStaff, type StaffMember } from "../../../services/staff.service";
+import { useHospitalContext } from "../../context/HospitalContext";
 
 export function Appointments() {
   const [showBookAppointment, setShowBookAppointment] =
@@ -107,6 +112,7 @@ export function Appointments() {
         actionConfig.openConsultation &&
         encounter
       ) {
+window.sessionStorage.setItem("careflow.activeSection", "consultation");
 window.location.href = `/consultation?encounterId=${encounter.id}&appointmentId=${appointment.id}`;
       }
     } catch (error) {
@@ -412,6 +418,7 @@ window.location.href = `/consultation?encounterId=${encounter.id}&appointmentId=
           onClose={() =>
             setShowBookAppointment(false)
           }
+          onSaved={loadAppointments}
         />
       )}
 
@@ -445,6 +452,14 @@ function getStateIcon(type?: string) {
   }
 
   return AlertCircle;
+}
+
+function formatPersonName(
+  person?: { firstName: string; middleName?: string | null; lastName: string } | null,
+): string {
+  if (!person) return "—";
+  const names = [person.firstName, person.middleName, person.lastName].filter(Boolean);
+  return names.join(" ");
 }
 
 function getAppointmentActionConfig(
@@ -643,6 +658,10 @@ function AppointmentCard({
     appointment.availableWorkflowActions ??
     [];
 
+  const patientName = formatPersonName(
+    appointment.patientHospital?.patientProfile?.personProfile,
+  );
+
   return (
     <div className="p-6 hover:bg-muted/30 transition-colors">
 
@@ -679,9 +698,18 @@ function AppointmentCard({
 
             </div>
 
+            <p className="text-sm font-medium text-foreground">
+              {formatPersonName(
+                appointment.patientHospital?.patientProfile
+                  ?.personProfile,
+              )}
+            </p>
+
             <p className="text-sm text-muted-foreground mb-1">
-              Patient Registration:{" "}
-              {appointment.patientHospitalId}
+              MRN:{" "}
+              {appointment.patientHospital
+                ?.medicalRecordNumber ??
+                appointment.patientHospitalId}
             </p>
 
             <p className="text-sm text-muted-foreground mb-1">
@@ -690,7 +718,10 @@ function AppointmentCard({
 
             <p className="text-sm text-muted-foreground">
               Doctor:{" "}
-              {appointment.doctorProfileId}
+              {formatPersonName(
+                appointment.doctorProfile?.staffProfile
+                  ?.personProfile,
+              ) ?? appointment.doctorProfileId}
             </p>
 
             {appointment.reason && (
@@ -842,7 +873,10 @@ function WeeklyCalendar({
                   {matchingAppointment && (
 
                     <p className="font-medium text-primary truncate">
-                      Patient
+                      {formatPersonName(
+                        matchingAppointment.patientHospital
+                          ?.patientProfile?.personProfile,
+                      ) || "Patient"}
                     </p>
 
                   )}
@@ -870,9 +904,81 @@ function WeeklyCalendar({
 
 function BookAppointmentModal({
   onClose,
+  onSaved,
 }: {
   onClose: () => void;
+  onSaved: () => void;
 }) {
+  const { currentHospital } = useHospitalContext();
+
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [doctors, setDoctors] = useState<StaffMember[]>([]);
+
+  const [selectedPatientId, setSelectedPatientId] = useState("");
+  const [selectedDoctorId, setSelectedDoctorId] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedTime, setSelectedTime] = useState("");
+  const [selectedType, setSelectedType] = useState("CONSULTATION");
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!currentHospital) return;
+
+    async function load() {
+      try {
+        const [patientData, staffData] = await Promise.all([
+          getPatients("", currentHospital.id),
+          getStaff(),
+        ]);
+        setPatients(patientData);
+        setDoctors(staffData.filter((s) => s.staffType === "DOCTOR" && s.doctorProfile));
+      } catch (err) {
+        console.error("Failed to load patients/doctors", err);
+        setError("Failed to load patients or doctors.");
+      }
+    }
+    load();
+  }, [currentHospital]);
+
+  async function handleSubmit() {
+    if (!currentHospital) return;
+    if (!selectedPatientId || !selectedDoctorId || !selectedDate || !selectedTime) {
+      setError("Please fill in all required fields.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+
+    try {
+      const startTime = `${selectedDate}T${selectedTime}:00`;
+      const payload: CreateAppointmentPayload = {
+        hospitalId: currentHospital.id,
+        patientHospitalId: selectedPatientId,
+        doctorProfileId: selectedDoctorId,
+        appointmentDate: selectedDate,
+        startTime,
+        endTime: addMinutes(startTime, 30),
+        appointmentType: selectedType,
+        reason: reason.trim() || undefined,
+      };
+
+      await createAppointment(payload);
+      onSaved();
+      onClose();
+    } catch (err) {
+      console.error("Failed to book appointment", err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to book appointment. Please try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -896,6 +1002,12 @@ function BookAppointmentModal({
 
         <div className="p-6 space-y-6">
 
+          {error && (
+            <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl text-sm">
+              {error}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
             {/* PATIENT */}
@@ -905,12 +1017,23 @@ function BookAppointmentModal({
                 Patient
               </label>
 
-              <select className="w-full px-4 py-3 bg-input-background rounded-xl border border-border">
-
-                <option>
-                  Select patient...
-                </option>
-
+              <select
+                className="w-full px-4 py-3 bg-input-background rounded-xl border border-border"
+                value={selectedPatientId}
+                onChange={(e) => setSelectedPatientId(e.target.value)}
+              >
+                <option value="">Select patient...</option>
+                {patients.map((patient) => {
+                  const name = formatPersonName(patient.personProfile);
+                  const registration = patient.hospitalRegistrations?.[0];
+                  const mrn = registration?.medicalRecordNumber ?? "";
+                  const registrationId = registration?.id ?? patient.id;
+                  return (
+                    <option key={patient.id} value={registrationId}>
+                      {name} {mrn ? `(${mrn})` : ""}
+                    </option>
+                  );
+                })}
               </select>
 
             </div>
@@ -922,12 +1045,21 @@ function BookAppointmentModal({
                 Doctor
               </label>
 
-              <select className="w-full px-4 py-3 bg-input-background rounded-xl border border-border">
-
-                <option>
-                  Select doctor...
-                </option>
-
+              <select
+                className="w-full px-4 py-3 bg-input-background rounded-xl border border-border"
+                value={selectedDoctorId}
+                onChange={(e) => setSelectedDoctorId(e.target.value)}
+              >
+                <option value="">Select doctor...</option>
+                {doctors.map((doctor) => {
+                  const name = formatPersonName(doctor.personProfile);
+                  const spec = doctor.doctorProfile?.specialization ?? "";
+                  return (
+                    <option key={doctor.id} value={doctor.doctorProfile?.id ?? doctor.id}>
+                      {name}{spec ? ` — ${spec}` : ""}
+                    </option>
+                  );
+                })}
               </select>
 
             </div>
@@ -942,6 +1074,8 @@ function BookAppointmentModal({
               <input
                 type="date"
                 className="w-full px-4 py-3 bg-input-background rounded-xl border border-border"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
               />
 
             </div>
@@ -956,6 +1090,8 @@ function BookAppointmentModal({
               <input
                 type="time"
                 className="w-full px-4 py-3 bg-input-background rounded-xl border border-border"
+                value={selectedTime}
+                onChange={(e) => setSelectedTime(e.target.value)}
               />
 
             </div>
@@ -967,20 +1103,15 @@ function BookAppointmentModal({
                 Appointment Type
               </label>
 
-              <select className="w-full px-4 py-3 bg-input-background rounded-xl border border-border">
-
-                <option>
-                  REGULAR_CHECKUP
-                </option>
-
-                <option>
-                  FOLLOW_UP
-                </option>
-
-                <option>
-                  EMERGENCY
-                </option>
-
+              <select
+                className="w-full px-4 py-3 bg-input-background rounded-xl border border-border"
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value)}
+              >
+                <option value="CONSULTATION">CONSULTATION</option>
+                <option value="FOLLOW_UP">FOLLOW_UP</option>
+                <option value="EMERGENCY">EMERGENCY</option>
+                <option value="TELEMEDICINE">TELEMEDICINE</option>
               </select>
 
             </div>
@@ -996,6 +1127,8 @@ function BookAppointmentModal({
                 className="w-full px-4 py-3 bg-input-background rounded-xl border border-border resize-none"
                 rows={3}
                 placeholder="Any special notes or concerns..."
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
               />
 
             </div>
@@ -1012,9 +1145,11 @@ function BookAppointmentModal({
             </button>
 
             <button
-              className="px-6 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 shadow-md"
+              disabled={saving}
+              onClick={handleSubmit}
+              className="px-6 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 shadow-md disabled:opacity-50"
             >
-              Book Appointment
+              {saving ? "Booking..." : "Book Appointment"}
             </button>
 
           </div>
@@ -1025,4 +1160,12 @@ function BookAppointmentModal({
 
     </div>
   );
+}
+
+function addMinutes(localDateTime: string, minutes: number): string {
+  const value = new Date(localDateTime);
+  value.setMinutes(value.getMinutes() + minutes);
+
+  const pad = (number: number) => String(number).padStart(2, "0");
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`;
 }

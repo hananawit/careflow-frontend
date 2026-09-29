@@ -95,15 +95,41 @@ export interface Appointment {
     chiefComplaint?: string | null;
     painScore?: number | null;
     notes?: string | null;
-  } | null;
+  } | {
+    id: string;
+    priority?: string;
+    chiefComplaint?: string | null;
+    painScore?: number | null;
+    notes?: string | null;
+  }[] | null;
 
   workflowInstance?: AppointmentWorkflowInstance | null;
   workflowState?: WorkflowState | null;
   availableWorkflowActions?: AppointmentWorkflowAction[];
 }
 
+export interface CreateAppointmentPayload {
+  hospitalId: string;
+  patientHospitalId: string;
+  doctorProfileId: string;
+  appointmentDate: string;
+  startTime: string;
+  endTime: string;
+  appointmentType: string;
+  reason?: string;
+}
+
 export async function getAppointments(): Promise<Appointment[]> {
   return apiRequest<Appointment[]>("/appointments");
+}
+
+export async function createAppointment(
+  data: CreateAppointmentPayload,
+): Promise<Appointment> {
+  return apiRequest<Appointment>("/appointments", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }
 
 export async function getAppointment(
@@ -142,4 +168,3 @@ export async function executeAppointmentWorkflowTransition(
     },
   );
 }
-

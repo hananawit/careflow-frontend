@@ -1,562 +1,202 @@
-import { useState } from "react";
-import {
-  createTriage,
-  type CreateTriageDto,
-} from "../../../services/triage.service";
+import { useEffect, useMemo, useState } from "react";
+import { AlertCircle, CheckCircle2, Loader2, Stethoscope } from "lucide-react";
+import { getAppointments, type Appointment } from "../../../services/appointment.service";
+import { getStaff, type StaffMember } from "../../../services/staff.service";
+import { createTriage, type CreateTriageDto } from "../../../services/triage.service";
+import { useHospitalContext } from "../../context/HospitalContext";
+
+type NumericField = Exclude<keyof CreateTriageDto, "appointmentId" | "nurseId" | "chiefComplaint" | "priority" | "notes">;
+
+const priorities = [
+  ["EMERGENCY", "Emergency"],
+  ["VERY_URGENT", "Very urgent"],
+  ["URGENT", "Urgent"],
+  ["STANDARD", "Standard"],
+  ["NON_URGENT", "Non-urgent"],
+] as const;
 
 export function Triage() {
-  const [form, setForm] = useState<CreateTriageDto>({
-    chiefComplaint: "",
-    priority: "STANDARD",
-  });
+  const { currentHospital } = useHospitalContext();
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [nurses, setNurses] = useState<StaffMember[]>([]);
+  const [loadingContext, setLoadingContext] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [form, setForm] = useState<CreateTriageDto>({ chiefComplaint: "", priority: "STANDARD" });
 
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const [errors, setErrors] = useState<
-    Partial<Record<keyof CreateTriageDto, string>>
->({});
-const handleChange = (
-  field: keyof CreateTriageDto,
-  value: string,
-) => {
-  setForm((previous) => ({
-    ...previous,
-    [field]: value,
-  }));
+  useEffect(() => {
+    void loadContext();
+  }, [currentHospital?.id]);
 
-  // Live validation
-  setErrors((previous) => {
-    const nextErrors = { ...previous };
-
-    if (field === "chiefComplaint") {
-      if (!value.trim()) {
-        nextErrors.chiefComplaint =
-          "Chief complaint is required.";
-      } else {
-        delete nextErrors.chiefComplaint;
-      }
+  async function loadContext() {
+    if (!currentHospital) {
+      setAppointments([]);
+      setNurses([]);
+      setLoadingContext(false);
+      return;
     }
 
-    if (field === "notes") {
-      delete nextErrors.notes;
+    try {
+      setLoadingContext(true);
+      setError("");
+      const [appointmentData, staffData] = await Promise.all([getAppointments(), getStaff()]);
+      setAppointments(appointmentData.filter((appointment) => appointment.hospitalId === currentHospital.id));
+      setNurses(staffData.filter((staff) => staff.hospitalId === currentHospital.id && staff.staffType === "NURSE"));
+    } catch (loadError) {
+      console.error(loadError);
+      setError(loadError instanceof Error ? loadError.message : "Unable to load triage context.");
+    } finally {
+      setLoadingContext(false);
+    }
+  }
+
+  const readyAppointments = useMemo(
+    () => appointments.filter((appointment) => appointment.encounter?.status === "IN_PROGRESS" && !hasTriage(appointment)),
+    [appointments],
+  );
+
+  function changeText(field: "appointmentId" | "nurseId" | "chiefComplaint" | "notes", value: string) {
+    setForm((previous) => ({ ...previous, [field]: value || undefined }));
+  }
+
+  function changeNumber(field: NumericField, value: string) {
+    setForm((previous) => ({ ...previous, [field]: value === "" ? undefined : Number(value) }));
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setError("");
+    setSuccess("");
+
+    if (!form.appointmentId || !form.nurseId || !form.chiefComplaint?.trim()) {
+      setError("Select an encounter and nurse, then enter the chief complaint.");
+      return;
+    }
+    if (form.painScore !== undefined && (form.painScore < 0 || form.painScore > 10)) {
+      setError("Pain score must be between 0 and 10.");
+      return;
+    }
+    if (form.oxygenSaturation !== undefined && (form.oxygenSaturation < 0 || form.oxygenSaturation > 100)) {
+      setError("Oxygen saturation must be between 0 and 100.");
+      return;
     }
 
-    return nextErrors;
-  });
-};
-const handleNumberChange = (
-  field: keyof CreateTriageDto,
-  value: string,
-) => {
-  const numericValue =
-    value === "" ? undefined : Number(value);
-
-  setForm((previous) => ({
-    ...previous,
-    [field]: numericValue,
-  }));
-
-  // Live validation
-  setErrors((previous) => {
-    const nextErrors = { ...previous };
-
-    // Empty is allowed because these fields are optional
-    if (value === "") {
-      delete nextErrors[field];
-      return nextErrors;
+    try {
+      setSaving(true);
+      const result = await createTriage({ ...form, chiefComplaint: form.chiefComplaint.trim(), notes: form.notes?.trim() || undefined });
+      setSuccess(result.bmi === null ? "Triage saved successfully." : `Triage saved successfully. BMI: ${result.bmi}.`);
+      setAppointments((previous) => previous.filter((appointment) => appointment.id !== form.appointmentId));
+      setForm({ chiefComplaint: "", priority: "STANDARD" });
+    } catch (saveError) {
+      console.error(saveError);
+      setError(saveError instanceof Error ? saveError.message : "Unable to save triage.");
+    } finally {
+      setSaving(false);
     }
-
-    let error = "";
-
-    switch (field) {
-      case "systolicBP":
-        if (
-          numericValue! < 50 ||
-          numericValue! > 250
-        ) {
-          error =
-            "Systolic BP must be between 50 and 250 mmHg.";
-        }
-        break;
-
-      case "diastolicBP":
-        if (
-          numericValue! < 30 ||
-          numericValue! > 150
-        ) {
-          error =
-            "Diastolic BP must be between 30 and 150 mmHg.";
-        }
-        break;
-
-      case "pulse":
-        if (
-          numericValue! < 20 ||
-          numericValue! > 250
-        ) {
-          error =
-            "Pulse must be between 20 and 250 bpm.";
-        }
-        break;
-
-      case "respiratoryRate":
-        if (
-          numericValue! < 5 ||
-          numericValue! > 80
-        ) {
-          error =
-            "Respiratory rate must be between 5 and 80 breaths/min.";
-        }
-        break;
-
-      case "temperature":
-        if (
-          numericValue! < 30 ||
-          numericValue! > 45
-        ) {
-          error =
-            "Temperature must be between 30°C and 45°C.";
-        }
-        break;
-
-      case "oxygenSaturation":
-        if (
-          numericValue! < 0 ||
-          numericValue! > 100
-        ) {
-          error =
-            "Oxygen saturation must be between 0% and 100%.";
-        }
-        break;
-
-      case "weight":
-        if (numericValue! <= 0) {
-          error =
-            "Weight must be greater than 0 kg.";
-        }
-        break;
-
-      case "height":
-        if (numericValue! <= 0) {
-          error =
-            "Height must be greater than 0 m.";
-        }
-        break;
-
-      case "painScore":
-        if (
-          numericValue! < 0 ||
-          numericValue! > 10
-        ) {
-          error =
-            "Pain score must be between 0 and 10.";
-        }
-        break;
-    }
-
-    if (error) {
-      nextErrors[field] = error;
-    } else {
-      delete nextErrors[field];
-    }
-
-    return nextErrors;
-  });
-};
-const validateForm = () => {
-  const newErrors: Partial<
-    Record<keyof CreateTriageDto, string>
-  > = {};
-
-  // Chief complaint
-  if (!form.chiefComplaint.trim()) {
-    newErrors.chiefComplaint =
-      "Chief complaint is required.";
   }
 
-  // Systolic BP
-  if (
-    form.systolicBP !== undefined &&
-    (form.systolicBP < 50 || form.systolicBP > 250)
-  ) {
-    newErrors.systolicBP =
-      "Systolic BP must be between 50 and 250 mmHg.";
-  }
-
-  // Diastolic BP
-  if (
-    form.diastolicBP !== undefined &&
-    (form.diastolicBP < 30 || form.diastolicBP > 150)
-  ) {
-    newErrors.diastolicBP =
-      "Diastolic BP must be between 30 and 150 mmHg.";
-  }
-
-  // Pulse
-  if (
-    form.pulse !== undefined &&
-    (form.pulse < 20 || form.pulse > 250)
-  ) {
-    newErrors.pulse =
-      "Pulse must be between 20 and 250 bpm.";
-  }
-
-  // Respiratory rate
-  if (
-    form.respiratoryRate !== undefined &&
-    (form.respiratoryRate < 5 ||
-      form.respiratoryRate > 80)
-  ) {
-    newErrors.respiratoryRate =
-      "Respiratory rate must be between 5 and 80 breaths/min.";
-  }
-
-  // Temperature
-  if (
-    form.temperature !== undefined &&
-    (form.temperature < 30 ||
-      form.temperature > 45)
-  ) {
-    newErrors.temperature =
-      "Temperature must be between 30°C and 45°C.";
-  }
-
-  // Oxygen saturation
-  if (
-    form.oxygenSaturation !== undefined &&
-    (form.oxygenSaturation < 0 ||
-      form.oxygenSaturation > 100)
-  ) {
-    newErrors.oxygenSaturation =
-      "Oxygen saturation must be between 0% and 100%.";
-  }
-
-  // Weight
-  if (
-    form.weight !== undefined &&
-    form.weight <= 0
-  ) {
-    newErrors.weight =
-      "Weight must be greater than 0 kg.";
-  }
-
-  // Height
-  if (
-    form.height !== undefined &&
-    form.height <= 0
-  ) {
-    newErrors.height =
-      "Height must be greater than 0 m.";
-  }
-
-  // Pain score
-  if (
-    form.painScore !== undefined &&
-    (form.painScore < 0 ||
-      form.painScore > 10)
-  ) {
-    newErrors.painScore =
-      "Pain score must be between 0 and 10.";
-  }
-
-  return newErrors;
-};
-const handleSubmit = async (
-  event: React.FormEvent,
-) => {
-  event.preventDefault();
-
-  // Validate before calling the API
-  const validationErrors = validateForm();
-
-  setErrors(validationErrors);
-  setMessage("");
-
-  // Stop if there are validation errors
-  if (Object.keys(validationErrors).length > 0) {
-    return;
-  }
-
-  try {
-    setLoading(true);
-
-    const result = await createTriage(form);
-
-    console.log("Triage created:", result);
-
-    setMessage(
-      `Triage saved successfully. BMI: ${
-        result.bmi ?? "N/A"
-      }`,
-    );
-
-    setForm({
-      chiefComplaint: "",
-      priority: "STANDARD",
-    });
-
-    setErrors({});
-  } catch (error) {
-    console.error(error);
-    setMessage("Failed to save triage.");
-  } finally {
-    setLoading(false);
-  }
-};
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">
-          Triage
-        </h1>
-
-        <p className="text-muted-foreground mt-1">
-          Record patient symptoms and vital signs.
-        </p>
+        <h1 className="text-3xl font-bold text-foreground">Triage</h1>
+        <p className="mt-1 text-muted-foreground">Capture vital signs and priority for patients with active encounters.</p>
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="max-w-4xl mx-auto bg-card border border-border rounded-2xl p-6 space-y-6"      >
-        {/* Chief Complaint */}
-        <div>
-          <label className="block text-sm font-medium mb-2">
-            Chief Complaint
-          </label>
+      {error && <Notice type="error" message={error} />}
+      {success && <Notice type="success" message={success} />}
 
-<textarea
-  value={form.chiefComplaint}
-  onChange={(event) =>
-    handleChange(
-      "chiefComplaint",
-      event.target.value,
-    )
-  }
-  rows={3}
-  className="w-full rounded-xl border border-border bg-background px-4 py-3"
-  placeholder="Why is the patient here?"
-/>
-
-{errors.chiefComplaint && (
-  <p className="mt-1 text-sm text-destructive">
-    {errors.chiefComplaint}
-  </p>
-)}
+      <form onSubmit={submit} className="max-w-5xl rounded-lg border border-border bg-card shadow-sm">
+        <div className="border-b border-border px-6 py-5">
+          <h2 className="font-semibold text-foreground">Clinical assessment</h2>
         </div>
 
-        {/* Vital Signs */}
-        <div>
-          <h2 className="text-lg font-semibold mb-4">
-            Vital Signs
-          </h2>
+        {loadingContext ? (
+          <div className="flex min-h-64 items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Loading triage queue...</div>
+        ) : !currentHospital ? (
+          <EmptyState message="Select an active hospital to begin triage." />
+        ) : readyAppointments.length === 0 ? (
+          <EmptyState message="No active encounters are waiting for triage." />
+        ) : nurses.length === 0 ? (
+          <EmptyState message="Register a nurse for this hospital before recording triage." />
+        ) : (
+          <div className="space-y-6 p-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <SelectField label="Encounter *" value={form.appointmentId ?? ""} onChange={(value) => changeText("appointmentId", value)} placeholder="Select active encounter">
+                {readyAppointments.map((appointment) => <option key={appointment.id} value={appointment.id}>{patientName(appointment)} · {appointment.patientHospital?.medicalRecordNumber ?? "No MRN"}</option>)}
+              </SelectField>
+              <SelectField label="Recording nurse *" value={form.nurseId ?? ""} onChange={(value) => changeText("nurseId", value)} placeholder="Select nurse">
+                {nurses.map((nurse) => <option key={nurse.id} value={nurse.id}>{staffName(nurse)} · {nurse.employeeNumber}</option>)}
+              </SelectField>
+            </div>
 
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <NumberField
-              label="Systolic BP"
-              value={form.systolicBP}
-              error={errors.systolicBP}
-              onChange={(value) =>
-                handleNumberChange("systolicBP", value)
-              }
-            />
+            <label className="block text-sm font-medium text-foreground">Chief complaint *
+              <textarea value={form.chiefComplaint} onChange={(event) => changeText("chiefComplaint", event.target.value)} required rows={3} placeholder="Presenting concern or symptoms" className="mt-2 w-full resize-y rounded-md border border-input bg-background px-3 py-2 font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+            </label>
 
-            <NumberField
-              label="Diastolic BP"
-              value={form.diastolicBP}
-              onChange={(value) =>
-                handleNumberChange("diastolicBP", value)
-              }
-            />
+            <div className="border-t border-border pt-6">
+              <h3 className="text-sm font-semibold text-foreground">Vital signs</h3>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <NumberField label="Systolic BP" suffix="mmHg" value={form.systolicBP} onChange={(value) => changeNumber("systolicBP", value)} />
+                <NumberField label="Diastolic BP" suffix="mmHg" value={form.diastolicBP} onChange={(value) => changeNumber("diastolicBP", value)} />
+                <NumberField label="Pulse" suffix="bpm" value={form.pulse} onChange={(value) => changeNumber("pulse", value)} />
+                <NumberField label="Respiratory rate" suffix="/min" value={form.respiratoryRate} onChange={(value) => changeNumber("respiratoryRate", value)} />
+                <NumberField label="Temperature" suffix="°C" step="0.1" value={form.temperature} onChange={(value) => changeNumber("temperature", value)} />
+                <NumberField label="Oxygen saturation" suffix="%" min="0" max="100" value={form.oxygenSaturation} onChange={(value) => changeNumber("oxygenSaturation", value)} />
+                <NumberField label="Weight" suffix="kg" step="0.1" min="0" value={form.weight} onChange={(value) => changeNumber("weight", value)} />
+                <NumberField label="Height" suffix="m" step="0.01" min="0" value={form.height} onChange={(value) => changeNumber("height", value)} />
+                <NumberField label="Pain score" suffix="/10" min="0" max="10" value={form.painScore} onChange={(value) => changeNumber("painScore", value)} />
+              </div>
+            </div>
 
-            <NumberField
-              label="Pulse"
-              value={form.pulse}
-              error={errors.pulse}
-              onChange={(value) =>
-                handleNumberChange("pulse", value)
-              }
-            />
+            <div className="grid gap-4 md:grid-cols-2">
+              <SelectField label="Priority *" value={form.priority} onChange={(value) => setForm((previous) => ({ ...previous, priority: value as CreateTriageDto["priority"] }))}>
+                {priorities.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </SelectField>
+              <label className="block text-sm font-medium text-foreground">Notes
+                <textarea value={form.notes ?? ""} onChange={(event) => changeText("notes", event.target.value)} rows={3} placeholder="Observations or handover notes" className="mt-2 w-full resize-y rounded-md border border-input bg-background px-3 py-2 font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+              </label>
+            </div>
 
-            <NumberField
-              label="Respiratory Rate"
-              value={form.respiratoryRate}
-              error={errors.respiratoryRate}
-              onChange={(value) =>
-                handleNumberChange(
-                  "respiratoryRate",
-                  value,
-                )
-              }
-            />
-
-            <NumberField
-              label="Temperature"
-              value={form.temperature}
-              error={errors.temperature}
-              step="0.1"
-              onChange={(value) =>
-                handleNumberChange(
-                  "temperature",
-                  value,
-                )
-              }
-            />
-
-            <NumberField
-              label="Oxygen Saturation"
-              value={form.oxygenSaturation}
-              error={errors.oxygenSaturation}
-              onChange={(value) =>
-                handleNumberChange(
-                  "oxygenSaturation",
-                  value,
-                )
-              }
-            />
-
-            <NumberField
-              label="Weight (kg)"
-              value={form.weight}
-              error={errors.weight}
-              step="0.1"
-              onChange={(value) =>
-                handleNumberChange("weight", value)
-              }
-            />
-
-            <NumberField
-              label="Height (m)"
-              value={form.height}
-              error={errors.height}
-              step="0.01"
-              onChange={(value) =>
-                handleNumberChange("height", value)
-              }
-            />
-
-            <NumberField
-              label="Pain Score (0–10)"
-              value={form.painScore}
-              min="0"
-              max="10"
-              error={errors.painScore}
-
-              onChange={(value) =>
-                handleNumberChange("painScore", value)
-              }
-            />
-          </div>
-        </div>
-
-        {/* Priority */}
-        <div>
-          <label className="block text-sm font-medium mb-2">
-            Priority
-          </label>
-
-          <select
-            value={form.priority}
-            onChange={(event) =>
-              handleChange(
-                "priority",
-                event.target.value,
-              )
-            }
-            className="w-full rounded-xl border border-border bg-background px-4 py-3"
-          >
-            <option value="EMERGENCY">Emergency</option>
-            <option value="VERY_URGENT">Very Urgent</option>
-            <option value="URGENT">Urgent</option>
-            <option value="STANDARD">Standard</option>
-            <option value="NON_URGENT">Non Urgent</option>
-          </select>
-        </div>
-
-        {/* Notes */}
-        <div>
-          <label className="block text-sm font-medium mb-2">
-            Notes
-          </label>
-
-          <textarea
-            value={form.notes ?? ""}
-            onChange={(event) =>
-              handleChange("notes", event.target.value)
-            }
-            rows={4}
-            className="w-full rounded-xl border border-border bg-background px-4 py-3"
-            placeholder="Additional observations..."
-          />
-        </div>
-
-        {/* Result */}
-        {message && (
-          <div className="rounded-xl bg-muted px-4 py-3 text-sm">
-            {message}
+            <div className="flex justify-end border-t border-border pt-5">
+              <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50">
+                {saving && <Loader2 className="size-4 animate-spin" />}{saving ? "Saving..." : "Save triage"}
+              </button>
+            </div>
           </div>
         )}
-
-        {/* Submit */}
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-xl bg-primary px-6 py-3 text-primary-foreground font-medium disabled:opacity-50"
-          >
-            {loading ? "Saving..." : "Save Triage"}
-          </button>
-        </div>
       </form>
     </div>
   );
 }
 
-
-interface NumberFieldProps {
-  label: string;
-  value?: number | null;
-  step?: string;
-  min?: string;
-  max?: string;
-  error?: string;
-  onChange: (value: string) => void;
+function hasTriage(appointment: Appointment) {
+  return Array.isArray(appointment.triage) ? appointment.triage.length > 0 : Boolean(appointment.triage);
 }
-function NumberField({
-  label,
-  value,
-  step = "1",
-  min,
-  max,
-  error,
-  onChange,
-}: NumberFieldProps) {
-  return (
-    <div>
-      <label className="block text-sm font-medium mb-2">
-        {label}
-      </label>
 
-      <input
-        type="number"
-        value={value ?? ""}
-        step={step}
-        min={min}
-        max={max}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
-        className={`w-full rounded-xl border bg-background px-4 py-3 ${
-          error
-            ? "border-destructive focus:outline-none"
-            : "border-border"
-        }`}
-      />
+function patientName(appointment: Appointment) {
+  const person = appointment.patientHospital?.patientProfile?.personProfile;
+  return person ? [person.firstName, person.middleName, person.lastName].filter(Boolean).join(" ") : "Patient record";
+}
 
-      {error && (
-        <p className="mt-1 text-sm text-destructive">
-          {error}
-        </p>
-      )}
-    </div>
-  );
+function staffName(staff: StaffMember) {
+  return [staff.personProfile.firstName, staff.personProfile.middleName, staff.personProfile.lastName].filter(Boolean).join(" ");
+}
+
+function Notice({ type, message }: { type: "error" | "success"; message: string }) {
+  const Icon = type === "error" ? AlertCircle : CheckCircle2;
+  const colors = type === "error" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-success/30 bg-success/10 text-success";
+  return <div role={type === "error" ? "alert" : "status"} className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-sm ${colors}`}><Icon className="size-4 shrink-0" />{message}</div>;
+}
+
+function EmptyState({ message }: { message: string }) {
+  return <div className="flex min-h-64 flex-col items-center justify-center gap-2 p-8 text-center text-muted-foreground"><Stethoscope className="size-5" /><p className="text-sm">{message}</p></div>;
+}
+
+function SelectField({ label, value, onChange, children, placeholder }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode; placeholder?: string }) {
+  return <label className="block text-sm font-medium text-foreground">{label}<select value={value} onChange={(event) => onChange(event.target.value)} required className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="">{placeholder ?? "Select..."}</option>{children}</select></label>;
+}
+
+function NumberField({ label, suffix, value, onChange, step = "1", min, max }: { label: string; suffix: string; value?: number; onChange: (value: string) => void; step?: string; min?: string; max?: string }) {
+  return <label className="block text-sm font-medium text-foreground">{label}<span className="ml-1 font-normal text-muted-foreground">{suffix}</span><input type="number" value={value ?? ""} step={step} min={min} max={max} onChange={(event) => onChange(event.target.value)} className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring" /></label>;
 }

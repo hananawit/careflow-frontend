@@ -3,22 +3,32 @@ import { useSearchParams } from "react-router-dom";
 
 import {
   createConsultation,
+  getConsultation,
+  updateConsultation,
+  type Consultation,
   type ConsultationStatus,
 } from "../../../services/consultation.service";
 
 import {
   getAppointment,
+  getAppointments,
   type Appointment,
 } from "../../../services/appointment.service";
+import { useHospitalContext } from "../../context/HospitalContext";
 
 export function Consultation() {
   const [searchParams] = useSearchParams();
+  const { currentHospital } = useHospitalContext();
 
   const appointmentId = searchParams.get("appointmentId");
   const encounterIdFromUrl = searchParams.get("encounterId");
 
   const [appointment, setAppointment] =
     useState<Appointment | null>(null);
+  const [availableAppointments, setAvailableAppointments] =
+    useState<Appointment[]>([]);
+  const [consultation, setConsultation] =
+    useState<Consultation | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [loadingAppointment, setLoadingAppointment] =
@@ -37,12 +47,30 @@ export function Consultation() {
 
   useEffect(() => {
     if (!appointmentId) {
-      setLoadingAppointment(false);
+      void loadAvailableAppointments();
       return;
     }
 
     loadAppointment();
   }, [appointmentId]);
+
+  async function loadAvailableAppointments() {
+    try {
+      setLoadingAppointment(true);
+      setMessage("");
+      const data = await getAppointments();
+      setAvailableAppointments(data.filter((item) => (
+        item.hospitalId === currentHospital?.id
+        && item.encounter?.status === "IN_PROGRESS"
+        && !item.encounter?.consultation
+      )));
+    } catch (error) {
+      console.error(error);
+      setMessage(error instanceof Error ? error.message : "Unable to load active encounters.");
+    } finally {
+      setLoadingAppointment(false);
+    }
+  }
 
   async function loadAppointment() {
     try {
@@ -53,16 +81,33 @@ export function Consultation() {
 
       setAppointment(data);
 
+      const attachedConsultation = data.encounter?.consultation;
+      if (attachedConsultation) {
+        const existing = await getConsultation(attachedConsultation.id);
+        setConsultation(existing);
+        setForm({
+          chiefComplaint: existing.chiefComplaint ?? "",
+          historyOfPresentIllness: existing.historyOfPresentIllness ?? "",
+          physicalExamination: existing.physicalExamination ?? "",
+          assessment: existing.assessment ?? "",
+          treatmentPlan: existing.treatmentPlan ?? "",
+          followUpInstructions: existing.followUpInstructions ?? "",
+        });
+      } else {
+        setConsultation(null);
+      }
+
       /*
        * If triage already captured a chief complaint,
        * use it as the initial consultation value.
        */
-      if (data.triage?.chiefComplaint) {
+      const triage = Array.isArray(data.triage) ? data.triage[0] : data.triage;
+      if (triage?.chiefComplaint) {
         setForm((previous) => ({
           ...previous,
           chiefComplaint:
             previous.chiefComplaint ||
-            data.triage?.chiefComplaint ||
+            triage.chiefComplaint ||
             "",
         }));
       }
@@ -98,8 +143,10 @@ export function Consultation() {
     );
   }, [encounterIdFromUrl, appointment]);
 
-  const existingConsultation =
-    appointment?.encounter?.consultation;
+  const existingConsultation = consultation ?? appointment?.encounter?.consultation;
+  const triageSummary = appointment
+    ? (Array.isArray(appointment.triage) ? appointment.triage[0] : appointment.triage)
+    : null;
 
   const patientName = appointment?.patientHospital
     ?.patientProfile?.personProfile
@@ -117,10 +164,7 @@ export function Consultation() {
       )
     : "Doctor";
 
-  async function handleSubmit(
-    event: React.FormEvent,
-  ) {
-    event.preventDefault();
+  async function saveConsultation(status: ConsultationStatus) {
 
     if (!appointment) {
       setMessage(
@@ -132,13 +176,6 @@ export function Consultation() {
     if (!encounterId) {
       setMessage(
         "No encounter is available for this appointment.",
-      );
-      return;
-    }
-
-    if (existingConsultation) {
-      setMessage(
-        "A consultation already exists for this encounter.",
       );
       return;
     }
@@ -168,46 +205,26 @@ export function Consultation() {
       setLoading(true);
       setMessage("");
 
-      await createConsultation({
+      const payload = {
         encounterId,
+        doctorProfileId: appointment.doctorProfileId,
+        patientHospitalId: appointment.patientHospitalId,
+        status,
+        chiefComplaint: form.chiefComplaint.trim(),
+        historyOfPresentIllness: optionalValue(form.historyOfPresentIllness),
+        physicalExamination: optionalValue(form.physicalExamination),
+        assessment: optionalValue(form.assessment),
+        treatmentPlan: optionalValue(form.treatmentPlan),
+        followUpInstructions: optionalValue(form.followUpInstructions),
+      };
 
-        doctorProfileId:
-          appointment.doctorProfileId,
+      if (consultation) {
+        await updateConsultation(consultation.id, payload);
+      } else {
+        await createConsultation(payload);
+      }
 
-        patientHospitalId:
-          appointment.patientHospitalId,
-
-        status:
-          "IN_PROGRESS" as ConsultationStatus,
-
-        chiefComplaint:
-          form.chiefComplaint.trim(),
-
-        historyOfPresentIllness:
-          optionalValue(
-            form.historyOfPresentIllness,
-          ),
-
-        physicalExamination:
-          optionalValue(
-            form.physicalExamination,
-          ),
-
-        assessment:
-          optionalValue(form.assessment),
-
-        treatmentPlan:
-          optionalValue(form.treatmentPlan),
-
-        followUpInstructions:
-          optionalValue(
-            form.followUpInstructions,
-          ),
-      });
-
-      setMessage(
-        "Consultation saved successfully.",
-      );
+      setMessage(status === "COMPLETED" ? "Consultation completed." : "Consultation saved successfully.");
 
       /*
        * Reload the appointment so the frontend
@@ -228,19 +245,45 @@ export function Consultation() {
     }
   }
 
+  function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    void saveConsultation("IN_PROGRESS");
+  }
+
   if (!appointmentId) {
     return (
-      <div className="p-6">
-        <div className="bg-card border border-border rounded-2xl p-6">
-          <h2 className="text-xl font-semibold">
-            No patient selected
-          </h2>
-
-          <p className="text-muted-foreground mt-2">
-            Start the consultation from the
-            checked-in appointment.
-          </p>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Consultation</h1>
+          <p className="mt-1 text-muted-foreground">Select an active encounter to begin a clinical consultation.</p>
         </div>
+
+        {message && <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{message}</div>}
+
+        <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+          {loadingAppointment ? (
+            <div className="p-8 text-sm text-muted-foreground">Loading active encounters...</div>
+          ) : availableAppointments.length === 0 ? (
+            <div className="p-10 text-center text-sm text-muted-foreground">No active encounters are ready for consultation.</div>
+          ) : (
+            <div className="divide-y divide-border">
+              {availableAppointments.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => { window.location.href = `/consultation?appointmentId=${item.id}&encounterId=${item.encounter?.id}`; }}
+                  className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-muted/40"
+                >
+                  <div>
+                    <p className="font-medium text-foreground">{item.patientHospital?.patientProfile?.personProfile ? getFullName(item.patientHospital.patientProfile.personProfile) : "Patient record"}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{item.patientHospital?.medicalRecordNumber ?? "No MRN"} · {item.appointmentType.replaceAll("_", " ")}</p>
+                  </div>
+                  <span className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground">Open consultation</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     );
   }
@@ -402,7 +445,7 @@ export function Consultation() {
       )}
 
       {/* Triage Summary */}
-      {appointment.triage && (
+      {triageSummary && (
         <div className="bg-card border border-border rounded-2xl p-6">
 
           <div className="mb-4">
@@ -417,43 +460,43 @@ export function Consultation() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
-            {appointment.triage.priority && (
+            {triageSummary.priority && (
               <InfoItem
                 label="Priority"
-                value={appointment.triage.priority}
+                value={triageSummary.priority}
               />
             )}
 
-            {appointment.triage.painScore !==
+            {triageSummary.painScore !==
               null &&
-              appointment.triage.painScore !==
+              triageSummary.painScore !==
                 undefined && (
                 <InfoItem
                   label="Pain Score"
-                  value={`${appointment.triage.painScore}/10`}
+                  value={`${triageSummary.painScore}/10`}
                 />
               )}
 
-            {appointment.triage.chiefComplaint && (
+            {triageSummary.chiefComplaint && (
               <div className="md:col-span-3">
                 <p className="text-sm text-muted-foreground">
                   Triage Chief Complaint
                 </p>
 
                 <p className="mt-1 text-sm">
-                  {appointment.triage.chiefComplaint}
+                  {triageSummary.chiefComplaint}
                 </p>
               </div>
             )}
 
-            {appointment.triage.notes && (
+            {triageSummary.notes && (
               <div className="md:col-span-3">
                 <p className="text-sm text-muted-foreground">
                   Triage Notes
                 </p>
 
                 <p className="mt-1 text-sm">
-                  {appointment.triage.notes}
+                  {triageSummary.notes}
                 </p>
               </div>
             )}
@@ -568,29 +611,33 @@ export function Consultation() {
 
           <button
             type="button"
-            onClick={() =>
-              setMessage(
-                "Draft saving will be added next.",
-              )
-            }
+            onClick={() => void saveConsultation("DRAFT")}
             disabled={loading}
             className="px-6 py-3 bg-muted text-foreground rounded-xl disabled:opacity-50"
           >
             Save Draft
           </button>
 
+          {consultation && consultation.status !== "COMPLETED" && (
+            <button
+              type="button"
+              onClick={() => void saveConsultation("COMPLETED")}
+              disabled={loading}
+              className="px-6 py-3 bg-success text-success-foreground rounded-xl font-medium disabled:opacity-50"
+            >
+              Complete Consultation
+            </button>
+          )}
+
           <button
             type="submit"
-            disabled={
-              loading ||
-              Boolean(existingConsultation)
-            }
+            disabled={loading || consultation?.status === "COMPLETED"}
             className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium disabled:opacity-50"
           >
             {loading
               ? "Saving..."
-              : existingConsultation
-                ? "Consultation Saved"
+              : consultation?.status === "COMPLETED"
+                ? "Consultation Completed"
                 : "Save Consultation"}
           </button>
         </div>
