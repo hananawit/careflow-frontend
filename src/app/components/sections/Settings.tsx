@@ -9,11 +9,14 @@ import {
 } from "lucide-react";
 import { HospitalManagement } from "./HospitalManagement";
 import { StaffManagement } from "./StaffManagement";
+import { UserManagement } from "./UserManagement";
+import { useAuth } from "../../../auth/AuthProvider";
 
 export function SettingsSection() {
   const [activeSection, setActiveSection] = useState<
-    "main" | "hospitals" | "staff"
+    "main" | "hospitals" | "staff" | "users"
   >("main");
+  const { permissions } = useAuth();
 
   if (activeSection === "hospitals") {
     return (
@@ -29,6 +32,10 @@ export function SettingsSection() {
         onBack={() => setActiveSection("main")}
       />
     );
+  }
+
+  if (activeSection === "users") {
+    return <UserManagement onBack={() => setActiveSection("main")} />;
   }
 
   return (
@@ -51,13 +58,7 @@ export function SettingsSection() {
           onClick={() => setActiveSection("hospitals")}
         />
 
-        <SettingsCard
-          title="User Management"
-          description="Manage user accounts and permissions"
-          icon={User}
-          color="success"
-          onClick={() => setActiveSection("staff")}
-        />
+        {permissions.includes("users.view") && <SettingsCard title="User Management" description="Manage user accounts and permissions" icon={User} color="success" onClick={() => setActiveSection("users")} />}
 
         <SettingsCard
           title="Notifications"

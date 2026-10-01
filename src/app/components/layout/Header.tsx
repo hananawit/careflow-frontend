@@ -1,7 +1,18 @@
 import { Building2, Search, Bell, User, ChevronDown } from "lucide-react";
 import { useHospitalContext } from "../../context/HospitalContext";
+import { useAuth } from "../../../auth/AuthProvider";
 
 export function Header() {
+  const {
+    authenticated,
+    username,
+    email,
+    firstName,
+    lastName,
+    login,
+    logout,
+  } = useAuth();
+
   const {
     hospitals,
     currentHospital,
@@ -31,8 +42,10 @@ export function Header() {
             <label className="sr-only" htmlFor="current-hospital">
               Current hospital
             </label>
+
             <div className="relative">
               <Building2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+
               <select
                 id="current-hospital"
                 value={currentHospital?.id ?? ""}
@@ -41,15 +54,20 @@ export function Header() {
                 className="h-10 w-full appearance-none rounded-md border border-border bg-input-background py-2 pl-9 pr-8 text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {hospitalsLoading && <option>Loading hospitals...</option>}
+
                 {!hospitalsLoading && hospitals.length === 0 && (
-                  <option>{hospitalsError ?? "No active hospitals"}</option>
+                  <option>
+                    {hospitalsError ?? "No active hospitals"}
+                  </option>
                 )}
+
                 {hospitals.map((hospital) => (
                   <option key={hospital.id} value={hospital.id}>
                     {hospital.name}
                   </option>
                 ))}
               </select>
+
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             </div>
           </div>
@@ -57,18 +75,46 @@ export function Header() {
           {/* Notifications */}
           <button className="relative p-2 hover:bg-muted rounded-xl transition-colors">
             <Bell className="w-5 h-5 text-foreground" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full"></span>
+
+            <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
           </button>
 
           {/* User Profile */}
           <div className="flex items-center gap-3 pl-4 border-l border-border">
             <div className="text-right">
-              <p className="text-sm font-medium text-foreground">Dr. Admin</p>
-              <p className="text-xs text-muted-foreground">Administrator</p>
+              <p className="text-sm font-medium text-foreground">
+                {firstName || lastName
+                  ? `${firstName ?? ""} ${lastName ?? ""}`.trim()
+                  : username ?? "User"}
+              </p>
+
+              <p className="text-xs text-muted-foreground">
+                {email ?? (authenticated ? "Authenticated user" : "Not signed in")}
+              </p>
             </div>
+
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white shadow-md">
               <User className="w-5 h-5" />
             </div>
+
+            {authenticated ? (
+              <button
+                type="button"
+                onClick={() => void logout()}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Sign out
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void login()}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Sign in
+              </button>
+            )}
+
             <ChevronDown className="w-4 h-4 text-muted-foreground" />
           </div>
         </div>

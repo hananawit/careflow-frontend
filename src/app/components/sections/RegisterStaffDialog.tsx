@@ -29,6 +29,8 @@ export function RegisterStaffDialog({ onClose, onSaved }: RegisterStaffDialogPro
 
   const [form, setForm] = useState({
     employeeNumber: "",
+    email: "",
+    initialPassword: "",
     staffType: "DOCTOR" as StaffType,
     firstName: "",
     middleName: "",
@@ -67,6 +69,8 @@ export function RegisterStaffDialog({ onClose, onSaved }: RegisterStaffDialogPro
       return;
     }
     if (!form.employeeNumber.trim()) { setError("Employee number is required."); return; }
+    if (!form.email.trim()) { setError("Email is required."); return; }
+    if (form.initialPassword.length < 12) { setError("Temporary password must be at least 12 characters."); return; }
     if (!form.firstName.trim()) { setError("First name is required."); return; }
     if (!form.lastName.trim()) { setError("Last name is required."); return; }
     if (!form.departmentId) { setError("Department is required."); return; }
@@ -78,6 +82,8 @@ export function RegisterStaffDialog({ onClose, onSaved }: RegisterStaffDialogPro
     setSaving(true);
     try {
       const payload: CreateStaffPayload = {
+        email: form.email.trim(),
+        initialPassword: form.initialPassword,
         hospitalId: currentHospital.id,
         departmentId: form.departmentId,
         employeeNumber: form.employeeNumber.trim(),
@@ -112,6 +118,8 @@ export function RegisterStaffDialog({ onClose, onSaved }: RegisterStaffDialogPro
         </div>
         <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
           <Field label="Employee Number *" value={form.employeeNumber} onChange={(v) => handleChange("employeeNumber", v)} placeholder="e.g. EMP-001" required />
+          <Field label="Work Email *" value={form.email} onChange={(v) => handleChange("email", v)} placeholder="name@hospital.org" required />
+          <Field label="Temporary Password *" value={form.initialPassword} onChange={(v) => handleChange("initialPassword", v)} placeholder="At least 12 characters" required type="password" />
           <SelectField label="Role *" value={form.staffType} onChange={(v) => handleChange("staffType", v)} options={STAFF_TYPES} />
           <Field label="First Name *" value={form.firstName} onChange={(v) => handleChange("firstName", v)} placeholder="First name" required />
           <Field label="Middle Name" value={form.middleName} onChange={(v) => handleChange("middleName", v)} placeholder="Middle name (optional)" />
@@ -141,8 +149,8 @@ export function RegisterStaffDialog({ onClose, onSaved }: RegisterStaffDialogPro
   );
 }
 
-function Field({ label, value, onChange, placeholder, required = false }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; required?: boolean }) {
-  return <label className="block text-sm font-medium text-foreground">{label}<input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring" required={required} /></label>;
+function Field({ label, value, onChange, placeholder, required = false, type = "text" }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; required?: boolean; type?: string }) {
+  return <label className="block text-sm font-medium text-foreground">{label}<input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring" required={required} /></label>;
 }
 
 function SelectField({ label, value, onChange, options, loading, placeholder }: { label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; loading?: boolean; placeholder?: string }) {

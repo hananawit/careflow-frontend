@@ -1,15 +1,26 @@
-const API_URL = "http://localhost:3000";
+import keycloak from "../auth/keycloak";
+
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
 export async function apiRequest<T>(
   endpoint: string,
   options?: RequestInit,
 ): Promise<T> {
+  const headers = new Headers(options?.headers);
+
+  headers.set("Content-Type", "application/json");
+
+  if (keycloak.authenticated) {
+    await keycloak.updateToken(30);
+  }
+
+  if (keycloak.token) {
+    headers.set("Authorization", `Bearer ${keycloak.token}`);
+  }
+
   const response = await fetch(`${API_URL}${endpoint}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
     ...options,
+    headers,
   });
 
   if (!response.ok) {
@@ -18,8 +29,14 @@ export async function apiRequest<T>(
 
     try {
       const errorBody: unknown = JSON.parse(errorText);
-      if (errorBody && typeof errorBody === "object" && "message" in errorBody) {
+
+      if (
+        errorBody &&
+        typeof errorBody === "object" &&
+        "message" in errorBody
+      ) {
         const apiMessage = errorBody.message;
+
         message = Array.isArray(apiMessage)
           ? apiMessage.join(", ")
           : String(apiMessage);
@@ -32,4 +49,15 @@ export async function apiRequest<T>(
   }
 
   return response.json();
+}export type CurrentUser = {
+  id: string;
+  keycloakId: string;
+  email: string;
+  status: string;
+  roles: string[];
+  permissions: string[];
+};
+
+export async function getCurrentUser(): Promise<CurrentUser> {
+  return apiRequest<CurrentUser>("/auth/me");
 }

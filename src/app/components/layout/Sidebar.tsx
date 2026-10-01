@@ -11,6 +11,7 @@ import {
   UserCog,
   Workflow,
 } from "lucide-react";
+import { useAuth } from "../../../auth/AuthProvider";
 interface SidebarProps {
   activeSection: string;
   onSectionChange: (section: string) => void;
@@ -20,6 +21,7 @@ const menuItems = [
     id: "dashboard",
     label: "Dashboard",
     icon: LayoutDashboard,
+    permission: "dashboard.view",
   },
   {
     id: "work-queue",
@@ -30,11 +32,13 @@ const menuItems = [
     id: "patients",
     label: "Patients",
     icon: Users,
+    permission: "patients.view",
   },
   {
     id: "appointments",
     label: "Appointments",
     icon: Calendar,
+    permission: "appointments.view",
   },
   {
     id: "triage",
@@ -55,21 +59,25 @@ const menuItems = [
     id: "laboratory",
     label: "Laboratory",
     icon: FlaskConical,
+    permission: "laboratory.view",
   },
   {
     id: "staff",
     label: "Doctors & Staff",
     icon: UserCog,
+    permission: "staff.view",
   },
   {
     id: "reports",
     label: "Reports",
     icon: BarChart3,
+    permission: "reports.view",
   },
   {
     id: "settings",
     label: "Settings",
     icon: Settings,
+    permission: "settings.manage",
   },
   {
     id: "workflow-configuration",
@@ -80,6 +88,9 @@ const menuItems = [
 
 
 export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
+  const { permissions } = useAuth();
+  const visibleItems = menuItems.filter((item) => !item.permission || permissions.includes(item.permission));
+
   return (
     <aside className="w-64 bg-card border-r border-sidebar-border h-screen fixed left-0 top-0 flex flex-col shadow-sm">
       {/* Logo & Brand */}
@@ -98,7 +109,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
       {/* Navigation Menu */}
       <nav className="flex-1 overflow-y-auto py-4 px-3">
         <div className="space-y-1">
-          {menuItems.map((item) => {
+          {visibleItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
             return (

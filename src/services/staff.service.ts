@@ -23,6 +23,8 @@ export interface StaffMember {
 }
 
 export interface CreateStaffPayload {
+  email: string;
+  initialPassword: string;
   hospitalId: string;
   departmentId: string;
   employeeNumber: string;
@@ -41,7 +43,7 @@ export function getStaff(): Promise<StaffMember[]> {
 }
 
 export function createStaff(data: CreateStaffPayload): Promise<StaffMember> {
-  return apiRequest<StaffMember>("/staff", {
+  return apiRequest<StaffMember>("/users/staff-accounts", {
     method: "POST",
     body: JSON.stringify(data),
   });
