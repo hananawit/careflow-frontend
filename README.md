@@ -1,29 +1,24 @@
-
-  # CareFlow
+# CareFlow
 
 ### Modern Healthcare Management Platform
 
-CareFlow is a full-stack hospital and healthcare management platform designed to bring clinical, administrative, and operational workflows into a unified digital system.
+CareFlow is a full-stack healthcare management platform designed to bring clinical, administrative, and operational workflows into a unified digital system.
 
-The project focuses on building a maintainable healthcare platform with modular architecture, role-based access control, configurable workflows, and a modern user experience.
+It demonstrates production-oriented full-stack development across **React, TypeScript, NestJS, Prisma, PostgreSQL, RBAC, and Keycloak**, with a focus on modular architecture, maintainability, configurable workflows, and usability.
 
 ## Live Demo
 
-**Frontend:**
-https://careflowhealth.netlify.app
+**Application:** https://careflowhealth.netlify.app
 
-**Backend API:**
-https://careflow-backend-urkz.onrender.com
+**Backend API:** https://careflow-backend-urkz.onrender.com
 
-> The portfolio deployment runs in **Demo Mode**, allowing visitors to explore the system without creating an account or configuring an external identity provider.
+> The public deployment runs in **Demo Mode**, allowing visitors to explore the application without configuring an external identity provider.
 
 ---
 
-## Overview
+## What CareFlow Includes
 
-CareFlow provides a centralized platform for managing healthcare operations across multiple hospital workflows.
-
-The system includes functionality for:
+CareFlow brings together major healthcare workflows in one platform, including:
 
 * Patient management
 * Hospital and department management
@@ -35,12 +30,11 @@ The system includes functionality for:
 * Consultations
 * Prescriptions
 * Laboratory requests
-* Reports
-* Hospital administration
+* Reporting
 * Role and permission management
 * Configurable workflow support
 
-The architecture is designed so that authentication, authorization, and hospital-level access controls can be enabled for a full production deployment.
+The system is designed so authentication, authorization, and organizational access controls can be enabled for a full authenticated deployment.
 
 ---
 
@@ -53,8 +47,8 @@ The architecture is designed so that authentication, authorization, and hospital
 * Vite
 * Material UI
 * React Router
-* Keycloak integration
 * REST API integration
+* Keycloak integration
 
 ### Backend
 
@@ -63,125 +57,115 @@ The architecture is designed so that authentication, authorization, and hospital
 * Prisma ORM
 * PostgreSQL
 * REST APIs
-* JWT / Keycloak authentication
+* JWT authentication
+* Keycloak
 * Role-Based Access Control (RBAC)
 * Permission-based authorization
 
 ### Infrastructure
 
-* Netlify — frontend deployment
-* Render — backend deployment
-* Supabase — PostgreSQL database
-* Keycloak — identity and access management for full deployments
+* Netlify — frontend
+* Render — backend
+* Supabase — PostgreSQL
+* Keycloak — identity and access management
 
 ---
 
 ## Architecture
 
 ```text
-                    ┌──────────────────────────┐
-                    │      CareFlow Frontend   │
-                    │      React + TypeScript  │
-                    │          Vite + MUI      │
-                    └────────────┬─────────────┘
-                                 │
-                                 │ REST API
-                                 ▼
-                    ┌──────────────────────────┐
-                    │      CareFlow Backend    │
-                    │     NestJS + TypeScript  │
-                    │                          │
-                    │  RBAC / Authorization    │
-                    │  Business Logic          │
-                    │  REST APIs               │
-                    └────────────┬─────────────┘
-                                 │
-                                 │ Prisma
-                                 ▼
-                    ┌──────────────────────────┐
-                    │      PostgreSQL          │
-                    │        Supabase          │
-                    └──────────────────────────┘
+┌─────────────────────────────┐
+│       CareFlow Frontend     │
+│   React + TypeScript + MUI  │
+│            Vite             │
+└──────────────┬──────────────┘
+               │
+               │ REST API
+               ▼
+┌─────────────────────────────┐
+│       CareFlow Backend      │
+│     NestJS + TypeScript     │
+│                             │
+│  Business Logic             │
+│  RBAC / Authorization       │
+│  REST APIs                  │
+└──────────────┬──────────────┘
+               │
+               │ Prisma
+               ▼
+┌─────────────────────────────┐
+│         PostgreSQL          │
+│          Supabase           │
+└─────────────────────────────┘
 
-             Full Deployment Authentication
-
-                    ┌──────────────────────────┐
-                    │         Keycloak         │
-                    │ Identity & Access Mgmt   │
-                    └────────────┬─────────────┘
-                                 │
-                                 ▼
-                    CareFlow Backend / RBAC
+        Authentication
+               │
+               ▼
+┌─────────────────────────────┐
+│          Keycloak           │
+│ Identity & Access Management│
+└─────────────────────────────┘
 ```
+
+---
+
+## Authentication & Authorization
+
+CareFlow supports a full authentication architecture based on **Keycloak** and JWTs.
+
+The backend supports:
+
+* Keycloak authentication
+* JWT validation
+* Role-based access control
+* Permission-based authorization
+* Protected API endpoints
+* Hospital-level access restrictions
+* Environment-based configuration
+* Production CORS configuration
+
+For the public portfolio deployment, authentication is intentionally simplified through **Demo Mode** so visitors can explore the application without running a separate Keycloak instance.
+
+The full authentication architecture remains available for authenticated deployments.
 
 ---
 
 ## Demo Mode
 
-The public portfolio deployment uses:
+The portfolio deployment uses:
 
-```text
+```env
 DEMO_MODE=true
 ```
 
-In this mode:
+Demo Mode provides:
 
-* No Keycloak server is required.
-* Visitors can access the application without a password.
-* A dedicated demo account is used by the backend.
-* Demo data is pre-populated for exploration.
-* The application's normal authentication architecture remains available in the codebase.
+* No external identity provider requirement
+* Preconfigured demo access
+* Representative healthcare data
+* Full access to the available demonstration workflows
 
-This approach allows the public demo to remain simple while preserving the architecture required for a full authenticated deployment.
-
-### Demo Account
-
-```text
-Email: demo@careflow.local
-Password: Not required in Demo Mode
-```
+This allows the deployed application to remain accessible while keeping the production authentication architecture in the codebase.
 
 ---
 
-## Security & Access Control
+## Database
 
-CareFlow was designed with security and authorization as core architectural concerns.
+CareFlow uses **PostgreSQL** with **Prisma ORM**.
 
-The backend supports:
+Database changes are managed through Prisma migrations.
 
-* Keycloak-based authentication
-* JWT validation
-* Role-based access control
-* Permission-based authorization
-* Hospital-level access restrictions
-* Protected API endpoints
-* Explicit production CORS configuration
-* Environment-based configuration
-* Secure handling of application secrets
-
-The public demo intentionally bypasses external identity-provider authentication through `DEMO_MODE`, while the full authentication implementation remains available for private/production deployments.
-
----
-
-## Database & Migrations
-
-CareFlow uses PostgreSQL with Prisma ORM.
-
-Database schema changes are managed through Prisma migrations.
-
-The deployment pipeline automatically performs:
+The backend deployment follows the general workflow:
 
 ```text
 Prisma Client Generation
-        ↓
+          ↓
 Database Migration
-        ↓
+          ↓
 NestJS Build
-        ↓
+          ↓
 Application Start
 ```
-
-The demo environment includes representative healthcare data for exploring the platform.
 
 ---
 
@@ -220,7 +204,7 @@ src/
 
 ---
 
-## Development
+## Running Locally
 
 ### Frontend
 
@@ -229,7 +213,7 @@ npm install
 npm run dev
 ```
 
-Create a local `.env` file:
+Example local environment:
 
 ```env
 VITE_API_URL=http://localhost:3000
@@ -245,60 +229,57 @@ npx prisma migrate deploy
 npm run start:dev
 ```
 
-Configure the backend environment variables according to the deployment environment.
-
-For a full authenticated deployment, configure Keycloak and disable:
-
-```env
-DEMO_MODE=false
-```
+For a full authenticated deployment, configure Keycloak and disable Demo Mode.
 
 ---
 
 ## Deployment
 
-The portfolio environment is deployed using:
+The portfolio deployment is structured as:
 
 ```text
 GitHub
-   │
-   ├── CareFlow Frontend
-   │        ↓
-   │     Netlify
-   │
-   └── CareFlow Backend
-            ↓
-          Render
-            ↓
-         Supabase
+  │
+  ├── CareFlow Frontend
+  │        │
+  │        ▼
+  │      Netlify
+  │
+  └── CareFlow Backend
+           │
+           ▼
+         Render
+           │
+           ▼
+        Supabase
 ```
 
-The frontend and backend are maintained as separate repositories so that each application can be independently developed, tested, and deployed.
+The frontend and backend are maintained as separate repositories so they can be developed, tested, and deployed independently.
 
 ---
 
-## Design Goals
+## Engineering Focus
 
-CareFlow is being developed around several principles:
+CareFlow was developed with an emphasis on:
 
-* **Modular architecture**
-* **Clean API contracts**
-* **Maintainability**
-* **Security**
-* **Configurable workflows**
-* **Role-based access**
-* **Scalable backend architecture**
-* **Usable clinical interfaces**
-* **Separation of frontend and backend concerns**
-* **Production-oriented development practices**
+* Modular architecture
+* Clean API contracts
+* Maintainability
+* Security
+* Configurable workflows
+* Role-based access
+* Separation of frontend and backend concerns
+* Scalable backend design
+* Usable clinical interfaces
+* Production-oriented development practices
 
-The goal is not simply to create a collection of CRUD screens, but to establish a foundation for a healthcare platform that can evolve with different organizational workflows and requirements.
+The goal is to provide more than a collection of CRUD screens: CareFlow is structured as a foundation that can evolve with different healthcare organizations and workflow requirements.
 
 ---
 
 ## Project Status
 
-### Implemented
+The current implementation includes:
 
 * Patient management
 * Hospital management
@@ -313,13 +294,11 @@ The goal is not simply to create a collection of CRUD screens, but to establish 
 * Laboratory requests
 * Dashboard
 * Reporting
-* Demo deployment
 * PostgreSQL persistence
-* Keycloak integration architecture
+* Keycloak integration
+* Public demo deployment
 
-### In Progress
-
-CareFlow continues to evolve toward a more complete hospital information management platform, with additional workflows, integrations, configuration capabilities, and production-hardening planned.
+CareFlow continues to evolve as a portfolio and engineering project, with additional workflow configuration, integrations, and production hardening planned.
 
 ---
 
@@ -329,12 +308,12 @@ CareFlow continues to evolve toward a more complete hospital information managem
 
 Software Developer · Data Analyst · AI & Emerging Technology Researcher
 
-CareFlow represents my work across full-stack software development, backend architecture, healthcare workflows, data management, authentication, and deployment.
+CareFlow demonstrates my work across full-stack software development, backend architecture, healthcare workflows, data management, authentication, authorization, and cloud deployment.
 
 ---
 
-## License
+## Portfolio Notice
 
-This project is maintained as a portfolio and demonstration project.
+CareFlow is maintained as a portfolio and demonstration project.
 
-Please contact the author before using the code, design, or implementation in a production healthcare environment.
+The application is intended to demonstrate software architecture and engineering practices and should not be used for handling real patient data without appropriate security, privacy, compliance, and operational controls.
